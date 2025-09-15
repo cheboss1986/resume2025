@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI/CD
 
 on:
   push:
@@ -9,46 +9,53 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Login to ECR
+      - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build Docker image
+      - name: Build, tag, and push image
         run: |
-          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/resume:${{ github.run_number }}
-          docker build -t $IMAGE_URI .
-          docker tag $IMAGE_URI ${{ steps.login-ecr.outputs.registry }}/resume:latest
+          IMAGE_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-portfolio"
+          IMAGE_TAG="${{ github.run_number }}"
 
-      - name: Push Docker image
-        run: |
-          IMAGE_URI=${{ steps.login-ecr.outputs.registry }}/resume:${{ github.run_number }}
-          docker push $IMAGE_URI
-          docker push ${{ steps.login-ecr.outputs.registry }}/resume:latest
+          echo "Building image: $IMAGE_REPO:$IMAGE_TAG"
+
+          docker build -t $IMAGE_REPO:$IMAGE_TAG .
+          docker push $IMAGE_REPO:$IMAGE_TAG
+
+      - name: Export image URI
+        run: echo "IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-portfolio:${{ github.run_number }}" >> $GITHUB_ENV
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: SSH and deploy Docker container
+      - name: SSH to EC2 and deploy container
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.KEY }}
           script: |
-            IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/resume:${{ github.run_number }}
-            docker pull $IMAGE_URI
+            IMAGE_URI=${{ env.IMAGE_URI }}
+            echo "Deploying $IMAGE_URI"
+
+            # Login to ECR
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+            # Remove old container if exists
             docker rm -f resume || true
-            docker run -d --name resume --restart unless-stopped -p 8080:5001 $IMAGE_URI
+
+            # Run new container
+            docker run -d --name resume -p 8080:5001 $IMAGE_URI
