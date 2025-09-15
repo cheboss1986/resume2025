@@ -41,21 +41,23 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: SSH to EC2 and deploy container
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USERNAME }}
-          key: ${{ secrets.KEY }}
-          script: |
-            IMAGE_URI=${{ env.IMAGE_URI }}
-            echo "Deploying $IMAGE_URI"
+    - name: SSH to EC2 and deploy container
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.KEY }}
+        script: |
+          IMAGE_URI=${{ env.IMAGE_URI }}
+          echo "Deploying $IMAGE_URI"
 
-            # Login to ECR
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          # Login to ECR using IAM Role (no AWS keys needed)
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+            docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
-            # Remove old container if exists
-            docker rm -f resume || true
+          # Remove old container if it exists
+          docker rm -f resume || true
 
-            # Run new container
-            docker run -d --name resume -p 8080:5001 $IMAGE_URI
+          # Run new container
+          docker run -d --name resume -p 8080:5001 $IMAGE_URI
+
