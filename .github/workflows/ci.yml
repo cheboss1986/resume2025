@@ -26,7 +26,7 @@ jobs:
 
       - name: Build, tag, and push image
         run: |
-          IMAGE_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-resume"
+          IMAGE_REPO="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/resume"
           IMAGE_TAG="${{ github.run_number }}"
 
           echo "Building image: $IMAGE_REPO:$IMAGE_TAG"
@@ -35,7 +35,7 @@ jobs:
           docker push $IMAGE_REPO:$IMAGE_TAG
 
       - name: Export image URI
-        run: echo "IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/my-resume:${{ github.run_number }}" >> $GITHUB_ENV
+        run: echo "IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/resume:${{ github.run_number }}" >> $GITHUB_ENV
 
   deploy:
     needs: build
