@@ -55,9 +55,20 @@ jobs:
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
 
-          # Remove old container if it exists
-          docker rm -f resume || true
+          # Check if container exists
+          CONTAINER_EXISTS=$(docker ps -aq -f name=resume)
 
-          # Run new container
+          if [ -n "$CONTAINER_EXISTS" ]; then
+              echo "Stopping and removing old container..."
+              docker rm -f resume
+          else
+              echo "No existing container found. This is the first deployment."
+          fi
+
+          # Run the new container
           docker run -d --name resume -p 8080:5001 $IMAGE_URI
 
+          # Confirm it’s running
+          echo "Current running containers:"
+          docker ps --filter name=resume
+  
